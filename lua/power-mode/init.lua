@@ -109,7 +109,7 @@ function Canvas:new()
 
 	o.w = 0
 	o.h = 0
-	o.buf = {}
+	o.bytes = {}
 	o.blank = nil
 
 	return o
@@ -124,9 +124,9 @@ function Canvas:use(w, h)
 	self.w = w
 	self.h = h
 
-	self.buf = {}
+	self.bytes = {}
 	for _ = 1, w * h * 4 do
-		table.insert(self.buf, "\x00")
+		table.insert(self.bytes, "\x00")
 	end
 end
 
@@ -171,8 +171,8 @@ function HomingAnimation:new(canvas, particles)
 		local dx = center_x - x
 		local dy = center_y - y
 		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
-		particles.particles[i].vx = dx / norm * 1.2 * (3 * math.random() - 1)
-		particles.particles[i].vy = dy / norm * 1.0 * (3 * math.random() - 1)
+		particles.particles[i].vx = dx / norm * 1.0 * (2 * math.random() - 0.5)
+		particles.particles[i].vy = dy / norm * 0.8 * (2 * math.random() - 0.5)
 	end
 
 	for _ = 1, 100 do
@@ -188,16 +188,16 @@ function HomingAnimation:new(canvas, particles)
 				local e = t * t * (3 - 2 * t)
 				local a = math.min(255, math.floor(255 * e))
 				local i = (y * canvas.w + x) * 4
-				canvas.buf[i + 1] = string.char(r)
-				canvas.buf[i + 2] = string.char(g)
-				canvas.buf[i + 3] = string.char(b)
-				canvas.buf[i + 4] = string.char(a)
+				canvas.bytes[i + 1] = string.char(r)
+				canvas.bytes[i + 2] = string.char(g)
+				canvas.bytes[i + 3] = string.char(b)
+				canvas.bytes[i + 4] = string.char(a)
 
 				max_a = math.max(max_a, a)
 			end
 		end
 
-		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.buf)
+		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.bytes)
 
 		particles:update()
 
@@ -230,7 +230,7 @@ function ExplodeAnimation:new(canvas, particles)
 
 	canvas:use(3 * w, 3 * h)
 	o.id = kitty.create_image(canvas.w, canvas.h, canvas:get_blank())
-	particles:use(2, 0.9, 16)
+	particles:use(2, 0.9, 20)
 
 	for i = 1, particles.num_particles do
 		local x = 1.0 * w + 1.0 * w * math.random()
@@ -241,8 +241,8 @@ function ExplodeAnimation:new(canvas, particles)
 		local dx = 1.0 * (3 * math.random() - 2)
 		local dy = 0.5 * (3 * math.random() - 2)
 		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
-		particles.particles[i].vx = dx / norm
-		particles.particles[i].vy = dy / norm
+		particles.particles[i].vx = dx / norm * 0.8
+		particles.particles[i].vy = dy / norm * 0.5
 	end
 
 	for _ = 1, 100 do
@@ -258,16 +258,16 @@ function ExplodeAnimation:new(canvas, particles)
 				local e = t * t * (3 - 2 * t)
 				local a = math.min(255, math.floor(255 * e))
 				local i = (y * canvas.w + x) * 4
-				canvas.buf[i + 1] = string.char(r)
-				canvas.buf[i + 2] = string.char(g)
-				canvas.buf[i + 3] = string.char(b)
-				canvas.buf[i + 4] = string.char(a)
+				canvas.bytes[i + 1] = string.char(r)
+				canvas.bytes[i + 2] = string.char(g)
+				canvas.bytes[i + 3] = string.char(b)
+				canvas.bytes[i + 4] = string.char(a)
 
 				max_a = math.max(max_a, a)
 			end
 		end
 
-		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.buf)
+		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.bytes)
 
 		particles:update()
 
