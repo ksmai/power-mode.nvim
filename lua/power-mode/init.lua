@@ -109,23 +109,24 @@ function Canvas:new()
 
 	o.w = 0
 	o.h = 0
-	o.bytes = {}
+	o.buf = {}
 	o.blank = nil
 
 	return o
 end
 
 function Canvas:use(w, h)
-	if self.w ~= w or self.h ~= h then
-		self.blank = nil
+	if self.w == w and self.h == h then
+		return
 	end
 
+	self.blank = nil
 	self.w = w
 	self.h = h
 
-	local to_create = w * h * 4 - #self.bytes
-	if to_create > 0 then
-		table.insert(self.bytes, "\x00")
+	self.buf = {}
+	for _ = 1, w * h * 4 do
+		table.insert(self.buf, "\x00")
 	end
 end
 
@@ -187,16 +188,16 @@ function HomingAnimation:new(canvas, particles)
 				local e = t * t * (3 - 2 * t)
 				local a = math.min(255, math.floor(255 * e))
 				local i = (y * canvas.w + x) * 4
-				canvas.bytes[i + 1] = string.char(r)
-				canvas.bytes[i + 2] = string.char(g)
-				canvas.bytes[i + 3] = string.char(b)
-				canvas.bytes[i + 4] = string.char(a)
+				canvas.buf[i + 1] = string.char(r)
+				canvas.buf[i + 2] = string.char(g)
+				canvas.buf[i + 3] = string.char(b)
+				canvas.buf[i + 4] = string.char(a)
 
 				max_a = math.max(max_a, a)
 			end
 		end
 
-		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.bytes)
+		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.buf)
 
 		particles:update()
 
@@ -210,19 +211,87 @@ function HomingAnimation:new(canvas, particles)
 end
 
 function HomingAnimation:run()
-	if self.id == nil then
-		error("Animation frames have not been generated")
+	kitty.run_animation(self.id, -1, -1)
+end
+
+local ExplodeAnimation = {}
+
+function ExplodeAnimation:new(canvas, particles)
+	local o = {}
+	setmetatable(o, self)
+	self.__index = self
+
+	compute_window_size()
+	local w = window_size.cell_w
+	local h = window_size.cell_h
+
+	local gap = 33
+	local color = { r = 0xff, g = 0x74, b = 0x0a }
+
+	canvas:use(3 * w, 3 * h)
+	o.id = kitty.create_image(canvas.w, canvas.h, canvas:get_blank())
+	particles:use(2, 0.9, 16)
+
+	for i = 1, particles.num_particles do
+		local x = 1.0 * w + 1.0 * w * math.random()
+		local y = 1.0 * h + 1.0 * h * math.random()
+		particles.particles[i].x = x
+		particles.particles[i].y = y
+
+		local dx = 1.0 * (3 * math.random() - 2)
+		local dy = 0.5 * (3 * math.random() - 2)
+		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
+		particles.particles[i].vx = dx / norm
+		particles.particles[i].vy = dy / norm
 	end
 
+	for _ = 1, 100 do
+		local max_a = 0
+
+		for y = 0, (canvas.h - 1) do
+			for x = 0, (canvas.w - 1) do
+				local intensity = particles:get_intensity(x + 0.5, y + 0.5)
+				local r = math.min(255, math.floor(color.r * intensity))
+				local g = math.min(255, math.floor(color.g * intensity))
+				local b = math.min(255, math.floor(color.b * intensity))
+				local t = math.min(1, math.max(0, intensity - 0.6))
+				local e = t * t * (3 - 2 * t)
+				local a = math.min(255, math.floor(255 * e))
+				local i = (y * canvas.w + x) * 4
+				canvas.buf[i + 1] = string.char(r)
+				canvas.buf[i + 2] = string.char(g)
+				canvas.buf[i + 3] = string.char(b)
+				canvas.buf[i + 4] = string.char(a)
+
+				max_a = math.max(max_a, a)
+			end
+		end
+
+		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.buf)
+
+		particles:update()
+
+		if max_a < 0.1 then
+			kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas:get_blank())
+			break
+		end
+	end
+
+	return o
+end
+
+function ExplodeAnimation:run()
 	kitty.run_animation(self.id, -1, -1)
 end
 
 local AnimationSet = {}
 
-function AnimationSet:new(canvas, particles, Class, num)
+function AnimationSet:new(particles, Class, num)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
+
+	local canvas = Canvas:new()
 
 	o.next = 1
 	o.animations = {}
@@ -246,6 +315,7 @@ end
 local initialized = false
 local run = true
 local on_insert
+local on_remove
 local canvas
 local particles
 
@@ -256,26 +326,40 @@ local function initialize()
 
 	initialized = true
 
-	canvas = Canvas:new()
 	particles = ParticleSystem:new()
-	on_insert = AnimationSet:new(canvas, particles, HomingAnimation, 16)
+	on_insert = AnimationSet:new(particles, HomingAnimation, 16)
+	on_remove = AnimationSet:new(particles, ExplodeAnimation, 16)
 end
 
 function M.setup(opts)
 	opts = opts or {}
 
+	local r
+	local c
+
 	vim.api.nvim_create_autocmd("InsertEnter", {
 		callback = function()
 			initialize()
+			r, c = unpack(vim.api.nvim_win_get_cursor(0))
 		end,
 	})
 
-	vim.api.nvim_create_autocmd("InsertCharPre", {
+	vim.api.nvim_create_autocmd("TextChangedI", {
 		callback = function()
+			local new_r, new_c = unpack(vim.api.nvim_win_get_cursor(0))
+
 			if run then
 				-- run = false
-				on_insert:run()
+
+				if new_r == r and new_c > c then
+					on_insert:run()
+				elseif new_r < r or new_r == r and new_c < c then
+					on_remove:run()
+				end
 			end
+
+			r = new_r
+			c = new_c
 		end,
 	})
 end
