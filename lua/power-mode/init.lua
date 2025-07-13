@@ -91,8 +91,8 @@ function Canvas:new()
 	local sz = ffi.new("struct winsize")
 	ffi.C.ioctl(0, 21523, sz)
 
-	o.w = sz.ws_xpixel / sz.ws_col
-	o.h = sz.ws_ypixel / sz.ws_row
+	o.w = sz.ws_xpixel / sz.ws_col * 3
+	o.h = sz.ws_ypixel / sz.ws_row * 3
 	o.bytes = {}
 	o.blank = {}
 
