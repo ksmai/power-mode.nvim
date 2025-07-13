@@ -82,11 +82,11 @@ function M.create_frame(id, w, h, gap, data)
 	write_data(data, control_payload)
 end
 
-function M.run_animation(id)
+function M.run_animation(id, offset_x, offset_y)
 	create_placeholder()
 
 	local cmd = string.format(
-		"%sa=a,i=%d,p=%d,c=1,q=%d%s%sa=a,i=%d,p=%d,s=3,v=2,r=1,z=0,q=%d%s%sa=p,i=%d,p=%d,C=1,q=%d%s%sa=p,i=%d,p=%d,P=%d,Q=%d,H=-1,V=-1,C=1,q=%d%s",
+		"%sa=a,i=%d,p=%d,c=1,q=%d%s%sa=a,i=%d,p=%d,s=3,v=2,r=1,z=0,q=%d%s%sa=p,i=%d,p=%d,C=1,q=%d%s%sa=p,i=%d,p=%d,P=%d,Q=%d,H=%d,V=%d,C=1,q=%d%s",
 		BEGIN,
 		id,
 		id,
@@ -107,6 +107,8 @@ function M.run_animation(id)
 		id,
 		placeholder_id,
 		id,
+		offset_x,
+		offset_y,
 		q,
 		END
 	)
