@@ -141,80 +141,75 @@ function Canvas:get_blank()
 	return self.blank
 end
 
-local Animation = {}
+local HomingAnimation = {}
 
-function Animation:new(canvas, particles)
+function HomingAnimation:new(canvas, particles)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 
-	o.canvas = canvas
-	o.particles = particles
-	o.id = nil
-	o.gap = 33
-	o.color = { r = 0x31, g = 0xf5, b = 0xeb }
-
-	return o
-end
-
-function Animation:generate_frames()
 	compute_window_size()
 	local w = window_size.cell_w
 	local h = window_size.cell_h
 
-	self.canvas:use(4 * w, 3 * h)
-	self.id = kitty.create_image(self.canvas.w, self.canvas.h, self.canvas:get_blank())
-	self.particles:use(5, 0.9, 16)
+	local gap = 33
+	local color = { r = 0x31, g = 0xf5, b = 0xeb }
 
-	for i = 1, self.particles.num_particles do
+	canvas:use(5 * w, 3 * h)
+	o.id = kitty.create_image(canvas.w, canvas.h, canvas:get_blank())
+	particles:use(5, 0.9, 12)
+
+	for i = 1, particles.num_particles do
 		local x = 1.0 * w + 2.0 * w * math.random()
 		local y = 1.1 * h + 0.8 * h * math.random()
-		self.particles.particles[i].x = x
-		self.particles.particles[i].y = y
+		particles.particles[i].x = x
+		particles.particles[i].y = y
 
 		local center_x = 1.0 * w + 1.0 * w * math.random()
 		local center_y = 1.0 * h + 1.0 * h * math.random()
 		local dx = center_x - x
 		local dy = center_y - y
 		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
-		self.particles.particles[i].vx = dx / norm * 1.2 * (3 * math.random() - 1)
-		self.particles.particles[i].vy = dy / norm * 1.0 * (3 * math.random() - 1)
+		particles.particles[i].vx = dx / norm * 1.2 * (3 * math.random() - 1)
+		particles.particles[i].vy = dy / norm * 1.0 * (3 * math.random() - 1)
 	end
 
 	for _ = 1, 100 do
 		local max_a = 0
 
-		for y = 0, (self.canvas.h - 1) do
-			for x = 0, (self.canvas.w - 1) do
-				local intensity = self.particles:get_intensity(x + 0.5, y + 0.5)
-				local r = math.min(255, math.floor(self.color.r * intensity))
-				local g = math.min(255, math.floor(self.color.g * intensity))
-				local b = math.min(255, math.floor(self.color.b * intensity))
+		for y = 0, (canvas.h - 1) do
+			for x = 0, (canvas.w - 1) do
+				local intensity = particles:get_intensity(x + 0.5, y + 0.5)
+				local r = math.min(255, math.floor(color.r * intensity))
+				local g = math.min(255, math.floor(color.g * intensity))
+				local b = math.min(255, math.floor(color.b * intensity))
 				local t = math.min(1, math.max(0, intensity - 0.6))
 				local e = t * t * (3 - 2 * t)
 				local a = math.min(255, math.floor(255 * e))
-				local i = (y * self.canvas.w + x) * 4
-				self.canvas.bytes[i + 1] = string.char(r)
-				self.canvas.bytes[i + 2] = string.char(g)
-				self.canvas.bytes[i + 3] = string.char(b)
-				self.canvas.bytes[i + 4] = string.char(a)
+				local i = (y * canvas.w + x) * 4
+				canvas.bytes[i + 1] = string.char(r)
+				canvas.bytes[i + 2] = string.char(g)
+				canvas.bytes[i + 3] = string.char(b)
+				canvas.bytes[i + 4] = string.char(a)
 
 				max_a = math.max(max_a, a)
 			end
 		end
 
-		kitty.create_frame(self.id, self.canvas.w, self.canvas.h, self.gap, self.canvas.bytes)
+		kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas.bytes)
 
-		self.particles:update()
+		particles:update()
 
 		if max_a < 0.1 then
-			kitty.create_frame(self.id, self.canvas.w, self.canvas.h, self.gap, self.canvas:get_blank())
+			kitty.create_frame(o.id, canvas.w, canvas.h, gap, canvas:get_blank())
 			break
 		end
 	end
+
+	return o
 end
 
-function Animation:run()
+function HomingAnimation:run()
 	if self.id == nil then
 		error("Animation frames have not been generated")
 	end
@@ -222,9 +217,35 @@ function Animation:run()
 	kitty.run_animation(self.id, -1, -1)
 end
 
+local AnimationSet = {}
+
+function AnimationSet:new(canvas, particles, Class, num)
+	local o = {}
+	setmetatable(o, self)
+	self.__index = self
+
+	o.next = 1
+	o.animations = {}
+	for _ = 1, num do
+		local animation = Class:new(canvas, particles)
+		table.insert(o.animations, animation)
+	end
+
+	return o
+end
+
+function AnimationSet:run()
+	self.animations[self.next]:run()
+
+	self.next = self.next + 1
+	if self.next > #self.animations then
+		self.next = 1
+	end
+end
+
 local initialized = false
 local run = true
-local animation
+local on_insert
 local canvas
 local particles
 
@@ -237,8 +258,7 @@ local function initialize()
 
 	canvas = Canvas:new()
 	particles = ParticleSystem:new()
-	animation = Animation:new(canvas, particles)
-	animation:generate_frames()
+	on_insert = AnimationSet:new(canvas, particles, HomingAnimation, 16)
 end
 
 function M.setup(opts)
@@ -254,7 +274,7 @@ function M.setup(opts)
 		callback = function()
 			if run then
 				-- run = false
-				animation:run()
+				on_insert:run()
 			end
 		end,
 	})
