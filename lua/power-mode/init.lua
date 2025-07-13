@@ -28,8 +28,8 @@ function ParticleSystem:new()
 	setmetatable(o, self)
 	self.__index = self
 
-	o.lightness = 1
-	o.decay = 0.9
+	o.lightness = 0
+	o.decay = 0
 	o.num_particles = 0
 	o.particles = {}
 
@@ -60,7 +60,8 @@ end
 function ParticleSystem:get_intensity(x, y)
 	local result = 0
 
-	for _, p in ipairs(self.particles) do
+	for i = 1, self.num_particles do
+		local p = self.particles[i]
 		local dx = x - p.x
 		local dy = y - p.y
 		local d = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
@@ -161,18 +162,19 @@ function HomingAnimation:new(canvas, particles)
 	particles:use(5, 0.9, 12)
 
 	for i = 1, particles.num_particles do
+		local p = particles.particles[i]
 		local x = 1.0 * w + 2.0 * w * math.random()
 		local y = 1.1 * h + 0.8 * h * math.random()
-		particles.particles[i].x = x
-		particles.particles[i].y = y
+		p.x = x
+		p.y = y
 
 		local center_x = 1.0 * w + 1.0 * w * math.random()
 		local center_y = 1.0 * h + 1.0 * h * math.random()
 		local dx = center_x - x
 		local dy = center_y - y
 		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
-		particles.particles[i].vx = dx / norm * 1.0 * (2 * math.random() - 0.5)
-		particles.particles[i].vy = dy / norm * 0.8 * (2 * math.random() - 0.5)
+		p.vx = dx / norm * 1.0 * (2 * math.random() - 0.5)
+		p.vy = dy / norm * 0.8 * (2 * math.random() - 0.5)
 	end
 
 	for _ = 1, 100 do
@@ -233,16 +235,17 @@ function ExplodeAnimation:new(canvas, particles)
 	particles:use(2, 0.9, 20)
 
 	for i = 1, particles.num_particles do
+		local p = particles.particles[i]
 		local x = 1.0 * w + 1.0 * w * math.random()
 		local y = 1.0 * h + 1.0 * h * math.random()
-		particles.particles[i].x = x
-		particles.particles[i].y = y
+		p.x = x
+		p.y = y
 
 		local dx = 1.0 * (3 * math.random() - 2)
 		local dy = 0.5 * (3 * math.random() - 2)
 		local norm = math.max(0.0001, math.sqrt(dx * dx + dy * dy))
-		particles.particles[i].vx = dx / norm * 0.8
-		particles.particles[i].vy = dy / norm * 0.5
+		p.vx = dx / norm * 0.8
+		p.vy = dy / norm * 0.5
 	end
 
 	for _ = 1, 100 do
@@ -316,7 +319,6 @@ local initialized = false
 local run = true
 local on_insert
 local on_remove
-local canvas
 local particles
 
 local function initialize()
