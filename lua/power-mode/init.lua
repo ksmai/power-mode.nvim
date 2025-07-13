@@ -52,8 +52,8 @@ end
 function ParticleSystem:update()
 	self.lightness = self.lightness * self.decay
 
-	for _, p in ipairs(self.particles) do
-		p:update()
+	for i = 1, self.num_particles do
+		self.particles[i]:update()
 	end
 end
 
